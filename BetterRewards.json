@@ -3,7 +3,7 @@
   "name": "BetterRewards",
   "author": "Jack Carlton",
   "description": "Adds a post-Neow event where you can sacrifice HP for gold, then shop in a special store with reroll, random relics, and random items.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "has_pck": false,
   "has_dll": true,
   "dependencies": [

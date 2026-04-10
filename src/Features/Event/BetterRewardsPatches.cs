@@ -333,6 +333,28 @@ internal static class NMerchantInventoryReadyPatch
     }
 }
 
+/// <summary>
+/// Patches NMerchantInventory.Initialize to subscribe RefreshLabels to all
+/// PurchaseCompleted events. Initialize runs after _Ready and is when Inventory
+/// is first populated, so this is the earliest safe point to access AllEntries.
+/// </summary>
+[HarmonyPatch(typeof(NMerchantInventory), nameof(NMerchantInventory.Initialize))]
+internal static class NMerchantInventoryInitializePatch
+{
+    [HarmonyPostfix]
+    public static void Postfix(NMerchantInventory __instance)
+    {
+        try
+        {
+            BetterRewardsShopButtonsFeature.TrySubscribePurchaseEvents(__instance);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[BetterRewards] Failed to subscribe purchase events: {ex.Message}");
+        }
+    }
+}
+
 [HarmonyPatch(typeof(EventRoom), "OnEventStateChanged")]
 internal static class EventRoomNeowMerchantTransitionPatch
 {

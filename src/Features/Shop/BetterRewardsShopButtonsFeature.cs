@@ -45,7 +45,16 @@ internal static class BetterRewardsShopButtonsFeature
     private static Texture2D? _randomRelicIconTexture;
     private static Texture2D? _randomItemIconTexture;
 
-    public static bool IsActiveShop { get; set; }
+    private static bool _isActiveShop;
+    public static bool IsActiveShop
+    {
+        get => _isActiveShop;
+        set
+        {
+            _isActiveShop = value;
+            if (!value) _activeRefreshAction = null;
+        }
+    }
 
     public static void TryAttachButtons(NMerchantInventory merchantInventory)
     {
@@ -88,6 +97,8 @@ internal static class BetterRewardsShopButtonsFeature
                 SetCost(btn);
             }
         }
+
+        _activeRefreshAction = RefreshLabels;
 
         _rerollIconTexture ??= LoadEmbeddedPngTexture(RerollIconResourceName);
         _randomRelicIconTexture ??= LoadEmbeddedPngTexture(RandomRelicIconResourceName);
@@ -168,6 +179,10 @@ internal static class BetterRewardsShopButtonsFeature
         container.AddChild(relicButton.Root);
         container.AddChild(randomButton.Root);
         slotsContainer.AddChild(container);
+
+        // Deferred so gold is readable after the node enters the tree.
+        // Purchase event subscriptions happen in TrySubscribePurchaseEvents, called from
+        // the Initialize patch (after Inventory is populated).
         Callable.From(RefreshLabels).CallDeferred();
 
         void PositionContainer()
@@ -180,18 +195,50 @@ internal static class BetterRewardsShopButtonsFeature
             var containerSize = container.GetCombinedMinimumSize();
             var availableSize = slotsContainer.Size;
             if (availableSize.X <= 0f || availableSize.Y <= 0f)
-            {
                 availableSize = slotsContainer.GetRect().Size;
-            }
 
-            var x = 12f;
-            var y = MathF.Max(12f, (availableSize.Y - containerSize.Y) * 0.25f);
-            container.Position = new Vector2(x, y);
+            // Bottom-left of the merchant window + 5% from the left, 10% up from the bottom.
+            var x = availableSize.X * 0.075f;
+            var y = availableSize.Y - containerSize.Y - availableSize.Y * 0.175f;
+
+            container.Position = new Vector2(x, MathF.Max(0f, y));
         }
 
         slotsContainer.Resized += PositionContainer;
         Callable.From(PositionContainer).CallDeferred();
     }
+
+    /// <summary>
+    /// Called from the Initialize patch once Inventory is populated.
+    /// Subscribes RefreshLabels to every entry's PurchaseCompleted so that
+    /// buying anything in the shop (card, relic, potion, card removal, or our
+    /// own buttons) immediately updates our price label colors.
+    /// </summary>
+    public static void TrySubscribePurchaseEvents(NMerchantInventory merchantInventory)
+    {
+        if (!IsActiveShop) return;
+
+        var slotsContainer = merchantInventory.GetNodeOrNull<Control>("%SlotsContainer");
+        if (slotsContainer == null) return;
+
+        var container = slotsContainer.GetNodeOrNull<Control>(ContainerName);
+        if (container == null) return;
+
+        // Find the RefreshLabels closure captured in TryAttachButtons by looking for
+        // the buttons node — we need to call SetCost on all ShopActionUi children.
+        // Simpler: just keep a static registry of active refresh delegates.
+        if (_activeRefreshAction == null) return;
+
+        if (merchantInventory.Inventory == null) return;
+
+        foreach (var entry in merchantInventory.Inventory.AllEntries)
+        {
+            entry.PurchaseCompleted += (_, _) => _activeRefreshAction?.Invoke();
+        }
+    }
+
+    // Stores the most recent RefreshLabels delegate so the Initialize patch can subscribe it.
+    private static Action? _activeRefreshAction;
 
     private static readonly MethodInfo? _restockAfterPurchase =
         typeof(MerchantEntry).GetMethod("RestockAfterPurchase", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -296,13 +343,24 @@ internal static class BetterRewardsShopButtonsFeature
     {
         await PlayerCmd.LoseGold(cost, player, GoldLossType.Spent);
 
-        var rarity  = RollRelicRarity(player.PlayerRng.Rewards,
+        var rarity = RollRelicRarity(player.PlayerRng.Rewards,
             BetterRewardsSettings.RelicWeightCommon,
             BetterRewardsSettings.RelicWeightUncommon,
             BetterRewardsSettings.RelicWeightRare,
             BetterRewardsSettings.RelicWeightShop,
             BetterRewardsSettings.RelicWeightAncient);
-        var relic   = RelicFactory.PullNextRelicFromFront(player, rarity);
+        // Ancient relics are excluded from the grab bag entirely (Populate filters them out).
+        // Pull directly from ModelDb for Ancient, bypassing the grab bag.
+        RelicModel relic;
+        if (rarity == RelicRarity.Ancient)
+        {
+            relic = PullRandomAncientRelic(player) ?? RelicFactory.PullNextRelicFromFront(player, RelicRarity.Rare);
+        }
+        else
+        {
+            relic = RelicFactory.PullNextRelicFromFront(player, rarity);
+        }
+
         var mutable = relic.IsMutable ? relic : relic.ToMutable();
         Log.Info($"[BetterRewards] Random Relic → {rarity} relic: {relic.Id}");
         await RelicCmd.Obtain(mutable, player);
@@ -323,13 +381,21 @@ internal static class BetterRewardsShopButtonsFeature
             {
                 case RandomItemType.Relic:
                 {
-                    var rarity  = RollRelicRarity(player.PlayerRng.Rewards,
+                    var rarity = RollRelicRarity(player.PlayerRng.Rewards,
                         BetterRewardsSettings.ItemRelicWeightCommon,
                         BetterRewardsSettings.ItemRelicWeightUncommon,
                         BetterRewardsSettings.ItemRelicWeightRare,
                         BetterRewardsSettings.ItemRelicWeightShop,
                         BetterRewardsSettings.ItemRelicWeightAncient);
-                    var relic   = RelicFactory.PullNextRelicFromFront(player, rarity);
+                    RelicModel relic;
+                    if (rarity == RelicRarity.Ancient)
+                    {
+                        relic = PullRandomAncientRelic(player) ?? RelicFactory.PullNextRelicFromFront(player, RelicRarity.Rare);
+                    }
+                    else
+                    {
+                        relic = RelicFactory.PullNextRelicFromFront(player, rarity);
+                    }
                     var mutable = relic.IsMutable ? relic : relic.ToMutable();
                     Log.Info($"[BetterRewards] Random Item (Relic) → {rarity}: {relic.Id}");
                     await RelicCmd.Obtain(mutable, player);
@@ -826,6 +892,35 @@ internal static class BetterRewardsShopButtonsFeature
             ui.PriceLabel.Text = cost.ToString();
             ui.PriceLabel.Modulate = HasEnoughGold(cost) ? StsColors.cream : StsColors.red;
         }
+    }
+
+    /// <summary>
+    /// Picks a random unlocked Ancient relic the player doesn't already own.
+    /// Ancient relics are excluded from the normal grab bag, so we query ModelDb directly.
+    /// Returns null if no candidates exist (caller should fall back to Rare).
+    /// </summary>
+    private static RelicModel? PullRandomAncientRelic(Player player)
+    {
+        var owned = new HashSet<string>(player.Relics.Select(r => r.Id.Entry), StringComparer.OrdinalIgnoreCase);
+
+        var candidates = ModelDb.AllRelicPools
+            .SelectMany(pool => pool.GetUnlockedRelics(player.UnlockState))
+            .Where(r => r.Rarity == RelicRarity.Ancient && !owned.Contains(r.Id.Entry))
+            .Distinct()
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            Log.Info("[BetterRewards] PullRandomAncientRelic: no candidates, falling back.");
+            return null;
+        }
+
+        var index = player.PlayerRng.Rewards.NextInt(candidates.Count);
+        var relic = candidates[index];
+        // Remove from shared grab bag to avoid duplicates with future normal pulls.
+        player.RunState.SharedRelicGrabBag.Remove(relic);
+        Log.Info($"[BetterRewards] PullRandomAncientRelic → {relic.Id}");
+        return relic;
     }
 
     private static bool HasEnoughGold(int cost)

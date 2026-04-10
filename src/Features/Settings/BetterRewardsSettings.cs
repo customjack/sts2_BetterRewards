@@ -18,7 +18,7 @@ internal static class BetterRewardsSettings
     public static double ScoreToGoldPercent { get; private set; } = 0.25;
 
     /// <summary>Minimum effective previous-run score (guarantees at least this much gold opportunity).</summary>
-    public static int MinPreviousScore { get; private set; } = 500;
+    public static int MinPreviousScore { get; private set; } = 1000;
 
     // --- Shop: reroll ---
 
@@ -27,15 +27,15 @@ internal static class BetterRewardsSettings
 
     // --- Shop: random relic ---
 
-    public static double RelicBaseCost { get; private set; } = 250.0;
+    public static double RelicBaseCost { get; private set; } = 300.0;
     public static double RelicCostScaling { get; private set; } = 1.10;
 
     // Relic rarity weights (higher = more likely)
-    public static double RelicWeightCommon   { get; private set; } = 50.0;
-    public static double RelicWeightUncommon { get; private set; } = 33.0;
-    public static double RelicWeightRare     { get; private set; } = 17.0;
-    public static double RelicWeightShop     { get; private set; } = 5.0;
-    public static double RelicWeightAncient  { get; private set; } = 2.0;
+    public static double RelicWeightCommon   { get; private set; } = 10.0;
+    public static double RelicWeightUncommon { get; private set; } = 20.0;
+    public static double RelicWeightRare     { get; private set; } = 35.0;
+    public static double RelicWeightShop     { get; private set; } = 10.0;
+    public static double RelicWeightAncient  { get; private set; } = 25.0;
 
     // --- Shop: random item ---
 
@@ -43,9 +43,9 @@ internal static class BetterRewardsSettings
     public static double RandomItemCostScaling { get; private set; } = 1.10;
 
     // Item type weights (Curse is now a sub-type of Card)
-    public static double ItemWeightRelic  { get; private set; } = 30.0;
-    public static double ItemWeightCard   { get; private set; } = 40.0;
-    public static double ItemWeightPotion { get; private set; } = 25.0;
+    public static double ItemWeightRelic  { get; private set; } = 15.0;
+    public static double ItemWeightCard   { get; private set; } = 50.0;
+    public static double ItemWeightPotion { get; private set; } = 35.0;
 
     // Card sub-type weights for random item
     // Common/Uncommon/Rare = player's character card pool
@@ -73,7 +73,7 @@ internal static class BetterRewardsSettings
     // Setters (called from registration/hydration)
     // -------------------------------------------------------------------------
 
-    public static void SetHpSacrificePercent(double v)      => HpSacrificePercent      = Math.Clamp(v, 0.01, 1.0);
+    public static void SetHpSacrificePercent(double v)      => HpSacrificePercent      = Math.Clamp(v, 0.0, 1.0);
     public static void SetSacrificeRepeatCount(double v)    => SacrificeRepeatCount    = Math.Max(1, (int)Math.Round(v));
     public static void SetScoreToGoldPercent(double v)      => ScoreToGoldPercent      = Math.Max(0.0, v);
     public static void SetMinPreviousScore(double v)        => MinPreviousScore        = Math.Max(0, (int)Math.Round(v));
@@ -113,21 +113,21 @@ internal static class BetterRewardsSettings
         HpSacrificePercent      = 0.20;
         SacrificeRepeatCount    = 4;
         ScoreToGoldPercent      = 0.25;
-        MinPreviousScore        = 500;
+        MinPreviousScore        = 1000;
         ShopRerollBaseCost      = 150.0;
         ShopRerollCostScaling   = 1.10;
-        RelicBaseCost           = 250.0;
+        RelicBaseCost           = 300.0;
         RelicCostScaling        = 1.10;
-        RelicWeightCommon       = 50.0;
-        RelicWeightUncommon     = 33.0;
-        RelicWeightRare         = 17.0;
-        RelicWeightShop         = 5.0;
-        RelicWeightAncient      = 2.0;
+        RelicWeightCommon       = 10.0;
+        RelicWeightUncommon     = 20.0;
+        RelicWeightRare         = 35.0;
+        RelicWeightShop         = 10.0;
+        RelicWeightAncient      = 25.0;
         RandomItemBaseCost      = 75.0;
         RandomItemCostScaling   = 1.10;
-        ItemWeightRelic         = 30.0;
-        ItemWeightCard          = 40.0;
-        ItemWeightPotion        = 25.0;
+        ItemWeightRelic         = 15.0;
+        ItemWeightCard          = 50.0;
+        ItemWeightPotion        = 35.0;
         CardWeightCommon        = 55.0;
         CardWeightUncommon      = 25.0;
         CardWeightRare          = 10.0;
